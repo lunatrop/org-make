@@ -1,0 +1,97 @@
+* TODO org-element get paragraph!
+#+begin_src elisp :results value code replace
+(setq el nil)
+(save-excursion
+  (org-goto-first-child)
+  (org-mark-subtree)
+  (setq el (org-element--parse-elements
+            (region-beginning)
+            (region-end) nil nil nil nil '(root nil)))
+  
+  (deactivate-mark))
+
+(assq 'paragraph (assq 'section (cdr (assq 'headline (cdr el)))))
+#+end_src
+
+#+RESULTS:
+
+** Tomo, Things Change
+Paragraph X
+Paragraph Y
+*** I must get this done
+<2023-07-23 Sun>--<2023-08-05 Sat> 13d
+yes
+*** list
+a. 3
+b. 2
+c. 4
+* general-parser.el  
+
+bogus
+#+begin_src elisp :results silent :tangle "~/elisp/general-parser.el"
+(defun indent(lvl)
+  (setf lf "")
+  (princ (concat lf (make-string (- lvl s-lvl 1) ? ))))
+
+(defun has-child()
+  (save-excursion 
+    (org-goto-first-child)))
+
+(defun get-paragraph ()
+  (save-excursion
+    (setq org-elp (org-element-property :contents-begin (org-element-at-point)))
+    (org-forward-paragraph)
+    (setq org-el (org-element-at-point))
+    (if (string= (car org-el) "property-drawer")(org-forward-paragraph))
+    (setq org-el (org-element-at-point))
+    (setq org-elp (org-element-property :contents-begin (org-element-at-point)))
+    (setq org-elp-end (org-element-property :contents-end (org-element-at-point)))
+    ;;(message "%s %s %s" org-el org-elp org-elp-end)
+    (setf paragraph-text
+          (buffer-substring 
+           org-elp
+           (- org-elp-end 1)))
+    ))
+
+(defun general-parser(bmk)
+  
+  (save-excursion
+    (org-goto-marker-or-bmk json-marker)
+    (setq s-lvl (org-current-level))
+    (org-goto-first-child)
+    (setq ends nil)
+    (org-map-entries 
+     (lambda()
+       
+       (setq p-lvl (org-get-previous-line-level))
+       (when (= p-lvl 0)(setq p-lvl 1))
+       (when (< p-lvl s-lvl)(setq p-lvl s-lvl))
+       (setq c-lvl (org-current-level))
+
+       (dotimes (c (- p-lvl c-lvl))
+         (indent (- p-lvl c 1))
+         (princ(format "\n%s" (car (pop ends)))))
+       
+       (dotimes (c (- c-lvl p-lvl))
+         (when (> c 0)
+           (princ (format "\n%s{\n") (indent (+ p-lvl c)))
+           (push (cons "}" (+ p-lvl c)) ends)))
+
+       ;;(message "hl: %s start: %s current: %s  previous: %s  " (org-entry-get (point) "ITEM") s-lvl c-lvl p-lvl )
+
+       ;;(when (> (- p-lvl s-lvl) 0) (indent c-lvl))
+       
+       (princ (format "{\n  %s \"%s\" : "  (indent c-lvl) (org-entry-get (point) "ITEM") ))
+       (push (cons "}" c-lvl) ends)
+       
+       (unless (has-child)
+         (princ (format "\"%s\" %s,\n " (get-paragraph) (car (pop ends))))
+
+         ;;(princ(format "%s" (car (pop ends))))
+         )) nil 'tree))
+
+  (mapcar (lambda(x)
+            (indent(cdr x))
+            (princ (format "%s" (car x)))) ends))
+#+end_src
+

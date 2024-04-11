@@ -1,0 +1,652 @@
+#+SEQ_TODO: JSON
+* predicates
+of: cons-tree
+used by writer and lisp-tree encoder
+** alistp
+#+begin_src elisp :results silent :noweb-ref alistp :noweb yes
+(defun alistp (list)
+  (while (and (consp (car-safe list))
+              (atom (caar list))
+              (setq list (cdr list))))
+              (null list))
+#+end_src
+** elementp
+encoder: ((objs)) make parent a list
+#+begin_src elisp :results silent :noweb-ref elementp
+(defun element-p (obj)
+  (and (alistp obj)(equal obj (list (list (caar obj))))))
+#+end_src
+* encode
+from: cons-tree
+to: json
+** vars
+#+begin_src elisp :results silent :noweb-ref vars
+(setq separator ",")
+(setq default-indentation "  ")
+(setq current-indentation "\n")
+(setq pretty-print t)
+(setq lisp-style-closings nil)
+#+end_src
+** with-indentation
+#+begin_src elisp :results silent :noweb-ref macros
+(defmacro with-indentation (body)
+  `(let ((current-indentation
+          (if pretty-print
+              (concat current-indentation
+                      default-indentation)
+            "")))
+     ,body))
+#+end_src
+** json-read dotted-cons mod
+<2023-11-01 Wed>
+not needed
+#+begin_src elisp :results silent :noweb yes :noweb-ref dot-cons-support
+(defun json--print-list (list)
+  "Like `json-encode-list', but insert the JSON at point."
+  ;;(message "json--print-list wtf %s" list)
+  (cond ((json-alist-p list) (json--print-alist list))
+        ((json-plist-p list) (json--print-unordered-map list))
+        ;;((dotted-cons-p list) (json--print-alist (list list)))
+        ((listp list)        (json--print-array list))
+        ((signal 'json-error (list list)))))
+#+end_src
+
+
+** dotted-cons-p
+dotted cons double-wraps list:
+1. which tricks json-encode to regard as an alist/js-object
+2. which write-org uses to denote headline element.
+#+begin_src elisp :results silent :noweb-ref dotted-cons-p
+(defun dotted-cons-p (list)
+  (and 
+   (symbolp (car list))
+   ))
+#+end_src
+** encode-array
+todo: arrays that are not strings don't newline
+#+begin_src elisp :results silent :noweb-ref array
+(defun encode-array (obj)
+  ;;(message "encoder 1 array %s" obj)
+  (when (or (proper-list-p obj) ;;not dotted
+            (vectorp obj))
+    (if (> (length obj) 0)
+        (concat
+         (with-indentation
+          (concat
+           (format "[%s" current-indentation )
+           ;;(format "[")
+           (string-join (mapcar 'encode obj)
+                        (format "%s%s"
+                                separator
+                                current-indentation
+                                ""
+                                ))
+           (format "%s]" current-indentation)
+           ;;(format "]" )
+           )))
+      (format "[]"))))
+#+end_src
+** encode-element
+writes to an array
+#+begin_src elisp :results silent :noweb-ref element :noweb yes
+(defun encode-element (object)
+  (setq element (read (format "%s" (caar object))))
+  ;;(message "element ::%s:: %s" (caar object) (type-of element))
+  (if (or (vectorp element) (numberp element))
+      (encode element)
+    (encode (format "%s" (caar object))))
+  )
+#+end_src
+
+** encode-keyword
+#+begin_src elisp :results silent :noweb-ref keywords
+(defun encode-keyword (keyword)
+  ;;(message "encode keyword %s" keyword)
+  (cond
+   ((eq keyword 'false) "false")
+   ((eq keyword 'true) "true")
+   ((eq keyword 'nil) "null")
+   ((eq keyword ':json-false) "false")
+   ((equal keyword "false") "false")
+   ((equal keyword "true") "true")
+   ((equal keyword "null") "null")
+   ((equal keyword "nil") "null")
+   ((equal keyword "") "null")
+   ((equal keyword ":json-false") "false")
+   ((equal keyword "\"\"") "\"\"")
+   )
+  )
+
+#+end_src
+** encode-symbol
+usually alist keys 
+#+begin_src elisp :results silent :noweb-ref symbol
+(defun encode-symbol (object)
+  (format "\"%s\"" (symbol-name object)))
+#+end_src
+** encode-alist
+adapted for dotted cons cells
+#+name: encode-alist
+#+begin_src elisp :results silent :noweb-ref alist :noweb yes
+
+(defun encode-alist (obj)
+  ;;(message "encode alist ::%s" obj)
+  (format "{%s%s}" 
+          (string-join
+           (with-indentation
+            (mapcar (lambda (cons)
+                      (format "%s%s: %s"
+                              current-indentation
+                              (encode-key (car cons))
+                              (encode (cdr cons)) ;;nil cdr = no paragraph
+                              )) obj))
+           separator)
+          current-indentation))
+#+end_src
+** encode-key
+when doing car of alist
+send to encode-string and return result
+#+begin_src elisp :results silent :noweb-ref key
+(defun encode-key (object)
+  ;;(message "::key:: :%s: %S %s" (type-of object) object (vectorp (read (symbol-name object))))
+  (let ((encoded (encode (symbol-name object))))
+    encoded))
+#+end_src
+** encode.el
+(find-file "~/elisp/encode.el")
+
+<<dotted-cons-p>>
+<<dot-cons-support>>
+#+begin_src elisp :results silent :noweb yes :tangle ~/elisp/encode.el
+<<vars>>
+<<macros>>
+<<array>>
+<<keywords>>
+<<key>>
+<<elementp>>
+<<element>>
+<<symbol>>
+<<alistp>>
+<<alist>>
+(defun encode (object)
+  ;;;(message "::encoder-zero-1:: :%S: %S" (type-of object) object)
+  (if (stringp object) (setq object (string-trim object)))
+  (cond
+   ((memq object '(false true null :json-false nil)) (encode-keyword object))
+   ;;paragraph concat is fucked
+   ((member object '("false" "true" "null" ":json-false" "\"\"")) (encode-keyword object))
+   ((numberp object) (json-encode-number object))
+   ((stringp object) (json-encode-string object)) ;;most paragraphs
+   ;;((keywordp object)(json-encode-string (substring (symbol-name object) 1)))
+   ((element-p object) (encode-element object))
+   ((alistp object) (encode-alist object))
+   ((and (listp object) ;;listp accepts nil as t
+        (symbolp (car object))) (encode-alist (list object)))
+  ((vectorp object) (encode-array object))
+  ((listp object)  (encode-array object))
+  ((symbolp object) (encode-symbol object))
+  (t (format "%sencoder fail: %s" current-indentation object))
+  ))
+
+#+end_src
+*** encoder v2
+**** encode
+#+begin_src elisp :results silent
+(defun encode (object)
+  ;;(message "::encoder-1:: :%S: %S" (type-of object) object)
+  (if (stringp object) (setq object (string-trim object)))
+  (cond
+   ((memq object '(false true null :json-false nil)) (encode-keyword object))
+   ((member object '("false" "true" "null" "nil" ":json-false" "\"\"")) (encode-keyword object))
+   ((numberp object)    (json-encode-number object))
+   ((stringp object)    (json-encode-string object))
+   ((element-p object)   (encode-element object))
+   ((eq (car object) 'nil) (encode-array object))
+   ((alistp object)     (encode-alist object))
+   ((dot-cons-p object) (encode-alist (list object)))
+   ((vectorp object) (encode-array object))
+   ((listp object)  (encode-array object))
+   ((symbolp object) (encode-symbol object))
+   (t (format "%sencoder fail: %s" current-indentation object))
+   ))
+#+end_src
+**** dot cons p
+#+begin_src elisp :results silent
+;;(message "dot cons: %s" (dot-cons-p object))
+(defun dot-cons-p (object)
+  (and (listp object) ;;listp accepts nil as t
+       (symbolp (car object))))
+
+#+end_src
+**** stringp object
+#+begin_src elisp :results silent
+  (if (stringp object)
+      (cond
+       ;;((html ((nil)) ((\"\\n\")) ((bold)) ((\"span\ after\ bold\"))))
+       ((string= "\"\\n\"" object) (setq object "\n"))
+       (t (setq object (string-trim object)))))
+#+end_src
+* write-org
+from: cons-tree
+to: org-mode
+** do-nil
+
+** do-symbol
+#+begin_src elisp :results silent :noweb-ref do-symbol
+(defun do-symbol (obj)
+  (message "do-symbol: %s" obj)
+  (princ (format "\n%s %s" (make-string lvl ?* ) obj ))
+  (setq lvl (1+ lvl)))
+#+end_src
+** do-string
+#+begin_src elisp :results silent :noweb-ref do-string
+(defun do-string (obj &optional hl)
+  (message "do-string: %S" obj)
+  (if (string= "\n" obj)(setq obj "\\n"))
+  (if hl (princ (format "\n%s \"%s\""  (make-string lvl ?* ) obj))
+    (princ (format "\"%s\""  obj))))
+
+#+end_src
+** do-num
+#+begin_src elisp :results silent :noweb-ref do-num
+(defun do-num (obj &optional hl)
+  ;;(message "do-number: %s" obj)
+  (princ (format "\n%s %s"  (make-string lvl ?* ) obj) ))
+(defvar lvl 2 "default org level for write")
+#+end_src
+** do-vector
+#+begin_src elisp :results silent :noweb-ref do-vector
+(defun do-vector (obj)
+  ;;(message "do-vector: %s" obj)
+  (princ (format "\n%s" obj)))
+
+#+end_src
+** do-keyword
+#+begin_src elisp :results silent :noweb-ref do-keyword
+(defun do-keyword (obj)
+  (message "do-keyword %s" obj)
+  (if (eq obj nil)(message "lisp nil" ))
+  (princ (format "\n%s %s"  (make-string lvl ?* ) obj) )
+  )
+#+end_src
+** do-num-string-arr
+#+begin_src elisp :results silent :noweb yes :noweb-ref do-num-string-arr
+<<num-string-arr-every-p>>
+(defun do-num-string-arr (obj)
+  ;;(message "do-num-string-arr: %s" obj)
+  (princ (format "%s \n" (make-string lvl ?* ) ))
+  (write-org obj lvl))
+#+end_src
+** num-string-arr-every-p
+#+begin_src elisp :results silent :noweb-ref num-string-arr-every-p
+(defun num-string-arr-every-p (obj)
+  (or (seq-every-p #'numberp obj)
+      (seq-every-p #'stringp obj)
+      (seq-every-p #'arrayp obj)
+      (seq-every-p #'symbolp obj)))
+#+end_src
+** do-cons
+#+begin_src elisp :results silent :noweb-ref do-cons
+
+(defun do-cons (obj)
+  (message "do-cons: ::%s:: car type ::%s:: cdr type ::%s::" obj (type-of (car obj)) (type-of (cdr obj))) ;;move this to write-org
+  (cond
+   ;;container 
+   ((symbolp (car obj))
+    ;;car
+    (progn
+      (princ (format "\n%s %s "  (make-string lvl ?* ) (car obj)))
+      ;;cdr
+      (cond
+       ((stringp (cdr obj))
+        (message "line feed test: %S %s" (cdr obj) (string= "\n" (cdr obj)))
+        (cond
+         ((string= "" (cdr obj))
+          (princ "\n\"\""))
+         (t (princ (format "\n%s" (string-trim (cdr obj)))))))
+
+       ((vectorp (cdr obj))
+        (cond
+         ((num-string-arr-every-p (cdr obj))
+          (princ (format "\n%s" (cdr obj))))
+
+         ;;json-encode arrays
+         ((or (vectorp (aref (cdr obj) 0))
+              (stringp (aref (cdr obj) 0))
+              )
+          (progn
+            ;;(princ (format "\n%s" (aref (cdr obj) 0)))
+            (setq lvl (1+ lvl))
+            (write-org (seq-drop (cdr obj) 0))
+            ))
+         
+         ((seq-some 'listp (cdr obj))
+          (progn
+            (setq lvl (1+ lvl))
+            (princ (format "\n%s "  (make-string lvl ?* ) ))
+            (setq lvl (1+ lvl))
+            (write-org (cdr obj))
+            (setq lvl (1- lvl))))))
+       
+       ((proper-list-p (cdr obj))
+        (message "proper-list-p ::%s::" (cdr obj))
+        (cond
+         ((stringp (cadr obj)) 
+          (message "string at cadr: %S" obj )
+          (progn 
+            (princ (format "\n%S " (string-trim (cadr obj))))
+            (setq lvl (1+ lvl))
+            (if (nthcdr 2 obj) ;;first member of long list is a string
+                (write-org (nthcdr 2 obj)))
+            ))
+
+         ;;headline array element. non symbol
+         ((not (symbolp (car-safe (car-safe (cdr obj)))))
+          (progn
+            (message "double-wrapped: %s" obj)
+            (setq lvl (1+ lvl))
+            (princ (format "\n%s "  (make-string lvl ?* ) ))
+            (setq lvl (1+ lvl))
+            (write-org (cdr obj))
+            (setq lvl (1- lvl))
+            ))
+
+         (t
+          (progn
+            (setq lvl (1+ lvl))
+            (write-org (cdr obj))))
+         ))
+       ;;paragraph
+       ((eq (cdr obj) :json-false)
+        (message ":json-false %s" obj)
+        (princ "\nfalse"))
+       ((eq (cdr obj) t)
+        (message "lisp t %s" obj)
+        (princ "\ntrue"))
+       (t (princ (format "\n%s " (cdr obj))))
+       )
+
+      ))
+   
+   ;;double wrapped array element
+   ((equal obj (list (list (caar obj))))
+    (message "double wrapped element %s" obj)
+    (princ (format "\n%s %s" (make-string lvl ?* ) (caar obj) )))
+
+   ;;double wrapped array construct
+   ((alistp obj)
+    (message "alist: %s" obj)
+    (if (eql 1 (length obj))
+        (mapcar 'write-org obj)
+      (princ (format "\n%s "  (make-string lvl ?* ) ))
+      (setq lvl (1+ lvl))
+      (mapcar 'write-org obj)
+      (setq lvl (1- lvl))))
+   ;;(princ (format "\n%s %s" (make-string lvl ?* ) (caar obj) )))
+   
+   ;;node
+   ((or (vectorp obj)
+        (proper-list-p obj))
+    (progn
+      ;;{}
+      (message "{} indexed object %s" obj) 
+      (princ (format "\n%s "  (make-string lvl ?* ) ))
+      (setq lvl (1+ lvl))
+      (mapcar 'write-org obj)
+      (setq lvl (1- lvl))
+      ))
+   ))
+#+end_src
+** insert-headline
+#+begin_src elisp :results silent
+(find-file "~/elisp/write-org.el")
+  (setq lvl (1+ lvl))
+  (princ (format "\n%s "  (make-string lvl ?* ) ))
+  (setq lvl (1+ lvl))
+  (write-org html-no-attribs)
+  (setq lvl (1- lvl))
+#+end_src
+** do-attrib
+#+begin_src elisp :results silent :noweb-ref do-attrib
+(defun attribs-p (obj)
+  (or (equal (nth 1 obj) nil)
+      (alistp (nth 1 obj))))
+
+(defun do-attrib (obj &optional hl)
+  (message "libxml attribs for tag ::%s::" (car obj))
+  (when (eq (nth 1 obj) 'nil) ;; nil => ((nil))
+    (setq obj (nconc
+               (list (car obj))
+               (list (list (list nil)))
+               (nthcdr 2 obj)))
+    (message "nil attribs ::%S:: " obj ))
+  (if hl (princ (format "\n%s %s "  (make-string lvl ?* ) (car obj))))
+  (message "indent as array")
+  (setq lvl (1+ lvl))
+  (princ (format "\n%s "  (make-string lvl ?* ) ))
+  (setq lvl (1+ lvl))
+  (write-org (cdr obj)) ;;symbolp car
+  (setq lvl (1- lvl)))
+#+end_src
+** write-org-json
+#+begin_src elisp :results silent :noweb yes :tangle ~/elisp/write-org.el
+<<alistp>>
+<<elementp>>
+<<do-num-string-arr>>
+<<do-symbol>>
+<<do-string>>
+<<do-num>>
+<<do-vector>>
+<<do-keyword>>
+<<do-cons>>
+<<do-attrib>>
+
+
+(defun write-org (container &optional level)
+  (if level (setq lvl level))
+  (message "container: %s ::%s::" (type-of container) container)
+  (cond
+   ((or (proper-list-p container) (vectorp container))
+    (seq-doseq (node container)
+      (message "node: ind[%s] %s ::%s::" (seq-position container node) (type-of node) node)
+      (if (eql (seq-position container node) 1)(message "\nposition 1::%s::\n" node))
+      (cond
+       ((memq node '(t nil :json-false)) (do-keyword node))
+       ((symbolp node) (do-symbol node))
+       ((numberp node) (do-num node))
+       ((stringp node) (do-string node t))
+       ((vectorp node) (do-vector node))
+       ((consp node)   (do-cons node))
+       (t (message "failed node: %s" node))))
+    (setq lvl (1- lvl)))
+   ((consp container)(do-cons container));;dotted cons
+   (t (message "failed container %s %s" container (type-of container)))
+   ))
+#+end_src
+
+** write-org-libxml
++ attributes should write to  property drawer
+  + html-css parser can reproduce libxml htmls
++ org lists can be seperated with 3 line returns
++ seq-position can be used for position
++ there shouldnt be a do-cons. write-org = do-cons
++ write-org:
+  1. dolist on elements
+  2. recurses itself if given a proper-list
+  
+*** test libxml
+#+begin_src elisp :results output raw
+(view-echo-area-messages)
+(setq with-spans '(html nil "\n" (bold nil "a span of bold text") "span after bold"))
+(setq with-no-attrib '(html nil "\n" (bold nil  "a span of bold text" "and another") "span after bold"))
+(setq with-1-attrib '(html ((attribX . "value1") ) "\n" (bold nil "a span of bold text") "span after bold"))
+(setq with-2-attrib '(html ((attribX . "value1") (attrib2 . "value2")) "\n" (bold nil "a span of bold text") "span after bold"))
+
+
+(write-org with-2-attrib 3)
+;;(princ "\n* \n")
+;;(pp org-lisp-tree)
+#+end_src
+#+RESULTS:
+
+
+
+* subtree
+from: org-mode
+to: org-elements
+** subtree-elements
+(find-file "~/elisp/subtree-elements.el")
+- builds org-lisp-tree from first child from point
+#+begin_src elisp :results silent :noweb yes :tangle ~/elisp/subtree-elements.el
+<<get-path>>
+<<read-element>>
+<<climb-add>>
+(defun subtree-elements (&optional key val)
+  (setq org-elements '(acc nil)) ;;reset accumulator
+  (save-excursion
+    (org-goto-first-child)
+    (org-mark-subtree)
+    (org-element--parse-elements
+     (region-beginning)
+     (region-end) nil nil nil nil
+     org-elements)
+    (deactivate-mark))
+
+  (setq org-lisp-tree (list))
+  (org-element-map org-elements '(headline paragraph) #'read-element)
+  org-lisp-tree)
+
+#+end_src
+** marked-subtree-elements
+(find-file "~/elisp/marked-subtree-elements.el")
+- for use with json-marker
+#+begin_src elisp :results silent :noweb yes :tangle ~/elisp/marked-subtree-elements.el
+(defun marked-subtree-elements (&optional key val)
+  (setq org-elements '(acc nil)) ;;reset accumulator
+  (save-excursion
+    (org-goto-marker-or-bmk json-marker)
+    (org-mark-subtree)
+    (org-element--parse-elements
+     (region-beginning)
+     (region-end) nil nil nil nil
+     org-elements)
+    (deactivate-mark))
+
+  (setq org-lisp-tree (list))
+  (org-element-map org-elements '(headline paragraph) #'read-element)
+  org-lisp-tree)
+#+end_src
+* read-org
+from: org-elements
+to: cons-tree
+** get-path
+#+begin_src elisp :results silent :noweb-ref get-path
+(defun get-path (el)
+  (setq lineage (org-element-lineage el))
+  (cdr (reverse
+        (seq-into (mapcar (lambda (ancestor)
+                            (org-element-property :raw-value ancestor))
+                          lineage)
+                  'list))))
+#+end_src
+** read-element
+read headlines and paragraphs from 'org-elements
+#+begin_src elisp :results silent :noweb yes :noweb-ref read-element
+(defun read-element (el) 
+  (setq path (get-path el))
+  (cond
+   ((eq path nil)
+    (setq root-key (org-element-property :raw-value el)))
+   (t
+    (progn
+      (setq path (cdr (get-path el)))
+      (when (eq (org-element-type el) 'headline)
+        (setq key (org-element-property :raw-value el))
+
+        (setq indexed (equal '("") (last path)))
+        (setq grouped-key (equal '("" "") (last path 2)))
+        
+        (cond
+         ((eq path nil)
+          (if (equal org-lisp-tree (list))
+              (setq org-lisp-tree (list (list (intern key))))
+            (nconc org-lisp-tree (list (list (intern key))))))
+
+         (grouped-key
+          (climb-setcdr (remove "" (butlast path 2)) org-lisp-tree (intern key) t))
+         
+         (indexed
+          (if (string= "" key)
+              (climb-setcdr (remove "" (butlast path)) org-lisp-tree '(group))
+            (climb-setcdr (butlast path) org-lisp-tree (list (intern key)))))
+
+         (t
+          (unless (string= "" key)
+            (climb-setcdr (remove "" path) org-lisp-tree (intern key))))))
+
+
+      (when (eq (org-element-type el) 'paragraph)
+        (unless (equal path '(nil))
+          (setq elx (org-element-interpret-data el))
+          (setq para-string (substring-no-properties elx))
+          
+          (if (or (vectorp (read para-string)) (numberp (read para-string)))
+              (climb-setcdr (butlast (remove "" path)) org-lisp-tree (read para-string))
+            (climb-setcdr (butlast (remove "" path)) org-lisp-tree para-string))
+          ))
+      
+      ))))
+#+end_src
+
+** climb-add
+construct org-lisp-tree
+#+begin_src elisp :results silent :noweb-ref climb-add
+(defun climb-setcdr (path cons-tree elt &optional grouped)
+  ;;(view-echo-area-messages)
+  (setq key (intern (pop path)))
+  (setq ass (assoc key cons-tree))
+  (if (not ass)
+      (dolist (wrapped cons-tree)
+        (when (assoc key wrapped)
+          (setq ass (assoc key wrapped)))))
+  (setq branch (cdr ass))
+  (if (> (length path) 0)
+      (climb-setcdr path branch elt grouped)
+    (if (not ass)
+        (message "no ass")
+      (setq found ass)
+      (cond
+       (grouped
+        ;;named array. build object of current array.
+        (if (equal (car (last branch)) (list '(group))) ;;created on "" "" last path
+            (setcar (car (last branch)) (list elt)) ;;first entry of last object in array
+          (nconc (car (last branch)) (list (list elt)))));;new entry to last object of array. 
+
+       ;;add object
+       ((or (eq (type-of elt) 'symbol)
+            (eq (type-of elt) 'cons))
+        (if (not branch) ;;cons with no cdr. hl-element?
+            (setcdr found (list (list elt))) ;;dotted cons 
+          ;;append to existing alist
+          (if (proper-list-p found)
+              ;;append to proper list
+              (nconc branch (list (list elt)))
+            ;;convert cons to proper-list. proper-list encodes to array
+            (setcdr found (nconc (list branch) (list (list elt)))))))) 
+
+      ;;add data vals
+      (when (or (stringp elt)(numberp elt)(vectorp elt));;lisp types
+        ;; concat string to dotted cdr
+        ;; untrimmed strings are for building paragraph blocks
+        (if (and (stringp branch)(stringp elt))
+            (setcdr found (concat branch elt));;second paragraph? 
+          ;; assign trimmed strings as values
+          ;;(when (stringp elt) (setq elt (string-trim elt)))
+          (cond
+           ((eq branch nil)        (setcdr found elt))
+           ((atom branch)          (setcdr found (list branch elt)))
+           ((proper-list-p branch) (setcdr found (nconc branch (list elt))))
+           (t (message "failed to add string"))
+           )))
+      )))
+#+end_src

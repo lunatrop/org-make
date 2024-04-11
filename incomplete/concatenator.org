@@ -1,0 +1,64 @@
+#+STARTUP: showall
+#+TODO: INTERN WILLTRIGGER TRIGGERED 
+Concatenate outline path
+Modify each headline with a src block
+EUP properties
+C-u EUP property_All to interned head
+intern makes a BOM
+WILLTRIGGER to execute headline modifiers
+WILLTRIGGER should check upstream
+* background-color_All
+** background-color
+(subtree-to-props)
+*** units
+**** hex
+**** dec
+*** red
+**** path
+#+begin_src elisp :results silent
+(mapconcat 'princ (org-get-outline-path nil) " " )
+#+end_src
+
+*** green
+**** path
+#+begin_src elisp :results silent
+(mapconcat 'princ (org-get-outline-path nil) " " )
+#+end_src
+
+*** blue
+**** path
+#+begin_src elisp :results silent
+(mapconcat 'princ (org-get-outline-path nil) " " )
+#+end_src
+
+
+
+
+* path
+#+begin_src elisp :results silent
+(mapconcat 'princ (org-get-outline-path t) " " )
+#+end_src
+
+
+* trigger-point
+:PROPERTIES:
+:sib22-prop: sib22-val
+:sub2:     hg
+:END:
+#+begin_src elisp :results silent
+(org-edit-headline "trigger-point")
+#+end_src
+** sib22-prop
+*** hg
+:PROPERTIES:
+:sub3:     756
+:prop4:    val4
+:END:
+#+begin_src elisp :results silent
+(org-edit-headline (org-entry-get nil "sub2" t))
+#+end_src
+**** prop4
+***** 756
+#+begin_src elisp :results silent
+(org-edit-headline (org-entry-get nil "sub3" t))
+#+end_src

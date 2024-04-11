@@ -1,0 +1,18 @@
+(find-file "~/elisp/intern-hl.el")
+#+begin_src elisp :results silent :tangle ~/elisp/intern-hl.el
+(defun intern-headline (e)
+  (if (string= (plist-get e :to) "INTERN")
+      (progn 
+        (message "interned %s as %s" (org-entry-get nil "ITEM") general-purpose-marker)
+        (setf general-purpose-marker (make-marker))
+        (set-marker general-purpose-marker (org-entry-beginning-position))
+        (set (intern (org-entry-get (point) "ITEM")) general-purpose-marker)))
+        ;;(message "interned %s as %s" (org-entry-get nil "ITEM") general-purpose-marker)
+  
+
+  (if (and (string= (plist-get e :from) "INTERN") 
+           (string= (plist-get e :to) nil))
+      (progn ;;(message "unintern %s" (org-entry-get (point) "ITEM"))
+        (unintern (org-entry-get (point) "ITEM")))))
+#+end_src
+        

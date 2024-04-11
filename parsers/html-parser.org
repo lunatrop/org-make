@@ -1,0 +1,372 @@
+#+SEQ_TODO: TODO | DONE
+#+PROPERTY: tangle ~/elisp/parser.el
+(load-file "~/elisp/parser.el")
+(find-file-other-window "~/elisp/parser.el")
+(find-file "~/org/make/listeners/parse.org")
+* reset-parser
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(require 's)
+(defun reset-parser ()  
+  (setq ends nil)
+  (setq indent nil)
+  (setq class-list nil)
+  (setq sub-class-list nil)
+)
+#+end_src
+* collect 
+elements
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun collect (stem)
+    (save-excursion 
+      (org-goto-marker-or-bmk stem)
+      (org-goto-first-child)
+      (org-mark-subtree)
+      (setf collection
+            (cddr (org-element--parse-elements
+             (region-beginning)
+             (region-end)
+             'section 
+             nil 
+             'headline
+             nil 
+             (list 'col nil)))) 
+      (deactivate-mark)))
+
+#+end_src
+
+** test org-element--parse-elements
+<2023-07-19 Wed>
+[[file:c:/msys64/mingw64/share/emacs/29.0.90/lisp/org/org-element.el.gz::(defun org-element--parse-elements][org-element.el emacs-29]]
+[[c:/Program Files/Emacs/x86_64/share/emacs/27.1/lisp/org/org-element.el][org-element.el emacs-27]]
+file:///C:/Users/eugen/Documents/ref/emacs-org-mode/orgmode.org/worg/dev/org-element-api.html
+(org-element--parse-elements BEG END MODE STRUCTURE GRANULARITY
+VISIBLE-ONLY ACC)
+ACC can't be nil must be a list terminating in nil
+
+#+begin_src elisp :results value code 
+(defun snoop (collection)
+  (setf was-sub nil)
+  (message "%s" (pop collection))
+  (when (> (length collection) 0)
+    (dolist (org-element collection) 
+      (message "%s" org-element))))
+(save-excursion 
+  (org-goto-first-child)
+  (org-mark-subtree)
+  (message "%s %s" (region-beginning) (region-end))
+  (setf els
+        (org-element--parse-elements
+         (region-beginning)
+         (region-end)
+         'section
+         t
+         'greater-element 
+         nil 
+         (list 'acc nil)
+         ))
+  (deactivate-mark))
+
+(message "%s" els)
+(snoop (cddr els))
+
+#+end_src
+
+#+RESULTS:
+#+begin_src elisp
+nil
+#+end_src
+
+*** test-tree
+**** script
+#+begin_src js :results output replace
+console.log( 'a fucking script' );
+#+end_src
+
+* traverse
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun traverse (collection)
+  (setf was-sub nil)
+  (render (pop collection))
+  (when (> (length collection) 0)
+      (dolist (org-element collection) 
+        (render org-element))))
+#+end_src
+* render
+args: collection
+set: b contents hl p 
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun render (headline) 
+  (save-excursion
+    
+    (setf contents (org-element-contents headline))
+    ;;(message "c: %s" (caar contents))
+    (setf b (org-element-property :begin headline))
+    (setf hl (org-element-property :raw-value headline))
+    (setf p nil)
+
+    (setf parent 
+          (org-element-property 
+           :raw-value 
+           (org-element-property 
+            :parent headline)))
+
+    (setf element nil)
+    (setf attribs nil)
+    (setf class nil)
+    (setf id nil)
+
+    (setf query nil)
+    (setf is-sub nil)
+    (setf props nil)
+    (get-objects)
+    (parse-headline-segments)
+
+    (unless query (setf sub-class-list nil))
+    (when query (setf element nil))
+    
+    ;;ignore html output of blank nodes
+    (unless (or (string= hl "") (string= parent ""))
+      (if element (print-tag)))
+    
+    (if (> (length contents) 0) 
+        (traverse contents))))
+#+end_src
+** get-objects                                                  :getObjects:
+args: b hl 
+setf: type props p haschild
+scan here for js src blocks
+
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun get-objects ()
+  (save-excursion
+    (goto-char b)
+    (save-excursion 
+      (setf has-child (org-goto-first-child)))
+    
+    ;;(message "%s %s" hl (org-element-property :contents-begin headline))
+    
+    (setf props-n-stuff (org-element-property :contents-begin headline))
+    (if props-n-stuff (goto-char props-n-stuff) (setf props-n-stuff nil))
+    (setf type (car (org-element-at-point)))
+
+    (when (string= type "property-drawer")
+      (setf props (org-entry-properties b 'standard))
+      (org-forward-paragraph)
+      (setf type (car (org-element-at-point))))
+    
+    (if (string= type "paragraph")
+        (setf p 
+              (buffer-substring
+               (org-element-property :begin (org-element-at-point))
+               (org-element-property :end (org-element-at-point)))))
+        
+    (when (string= type "src-block")
+      (setf p (concat (cadr (org-babel-get-src-block-info)) "\n")))
+
+))
+
+#+end_src
+** parse-headline-segments
+
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun parse-headline-segments ()
+  (setf hl-segs (s-split " " hl))
+  (setf segs (length hl-segs))
+
+  ;;nested @rules start
+  (when (string-match-p "@" hl) 
+    (setf is-sub nil))
+  (when (string-match-p "@" hl) 
+    (save-excursion
+      (goto-char b)
+      (outline-up-heading 1)
+      (if (org-goto-sibling) 
+          (setf mq-is-last nil)
+        (setf mq-is-last t))))
+
+  (setf rule-is-last nil)
+
+  (when (and b parent (string-match-p "@" parent))
+    (save-excursion 
+      (goto-char b)
+      (if (org-goto-sibling) 
+          (setf rule-is-last nil)
+        (setf rule-is-last t)))) 
+  (when (and parent (string-match-p "@" parent)) ;;this @rule is a child of an @rule
+    (setf query hl)
+    (setf is-sub t))
+  ;;nested @rules end
+
+  (dolist (seg hl-segs)
+    (parse-segment)))
+#+end_src
+*** parse-segment
++ nameless nodes should not render
++ html elements that are child of nameless nodes should print to css rather than attributes
+
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun parse-segment ()
+  (let* ((pfx (if (> (length seg) 0) (substring seg 0 1) ""))) 
+    ;;if seg is multi segmented pfx is the first character 
+    ;;otherwise pfx is blank
+    (if (member pfx '("." "#" ""))
+        (setf element "div")
+      (setf element seg))
+    ;;entry is either class or div regardless if multi/single seg
+    (if (> segs 1)(setf element nil))
+    ;;multi segs disqualifies entry as an element. 
+    ;;prints all multi segments to css regardless.
+
+    ;;special hl for DOMinator
+    ;;(if (> (length seg) 2)
+    ;;    (if (string= (substring seg -2 nil) "()")(setf element nil)))
+    
+
+    (if (string= pfx "@")(setf element nil))
+    (if (string= pfx ".")(setf class seg))
+    (if (string= pfx "#")(setf id seg))
+    ;;anything class or id goes to css 
+    ;;otherwise they are are attribute in a tag
+
+
+    (if (member pfx '("." "#" ))
+        ;;to css
+        (do-css-from-props props)
+      ;;to tag
+      (setf attribs props))
+
+    ;; anytime there are are multiple segments
+    (if (> segs 1)
+        (do-css-from-props props))
+    
+    ;; anything that starts with @
+    (when (string= pfx "@")
+      (do-css-from-props props))
+
+    ;; animation keyframes
+    (setf sfx (if (> (length seg) 0)
+                  (substring seg (- (length seg) 1))
+                ""))
+
+    (when (or (string= sfx "%")
+              (member hl '("to" "from")))
+      (do-css-from-props props))
+
+    (when (and (not (member pfx '("." "#" "@")))
+               (string= "" parent))
+      ;;(message "is element with blank parent %s %s" seg (string= "" parent))
+      (do-css-from-props props))
+    ))
+#+end_src
+*** do-css-from-props
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun do-css-from-props (props)
+  ;;the presence of property drawer or @ rule appends the css file
+  (when (or (cdr props) 
+            (string-match-p "@" hl))
+    
+    (setf rule (cons hl props))
+
+    ;;first child block
+    (when (and is-sub (not was-sub))
+      (setf super-class parent)
+      (setf was-sub t))
+
+    ;;either push subblock or push to main list
+    (if is-sub (push rule sub-class-list)
+      (unless (string-match-p "@" hl) 
+        (push rule class-list)))
+
+    ;;font-face rules are never sub blocks
+    (when (string-match-p "@font-face" hl)
+      (push rule class-list))
+
+    ;;last child block - push sub block to class list
+    (when (or (and (not is-sub) was-sub)
+              (and (boundp 'mq-is-last) 
+                   mq-is-last 
+                   rule-is-last))
+      (setf completed-sub 
+            (cons super-class sub-class-list))
+      
+      (push completed-sub class-list)
+      (setf sub-class-list nil)
+      (setf was-sub nil))
+
+    ))
+#+end_src
+** print-tag
+scope: indent classlist ends
+args: props p
+set: class id tag
+remove '#' from id attribute
+(substring "#bogus" 1)
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun print-tag ()
+  (setf tag nil)
+  (setf indent (make-string (length ends) ? ));;(make-string 4 ?x)
+  (princ indent)
+  (princ "<" )
+  (setf tag element)
+  (princ (format "%s" element ) )
+  
+  (if id (princ (format " id=\"%s\"" (substring id 1))))
+  
+  (when class 
+    (save-excursion
+      (goto-char b)
+      ;;(message "%s %s %s %s %s" (point) props-n-stuff b class (check-upstream "text/jsx"))
+      (if (check-upstream "text/jsx")
+          (princ (format " className=\"%s\"" (substring class 1) ))
+        (princ (format " class=\"%s\"" (substring class 1) )))))
+
+  (do-attribs-from-props)
+  ;;(message "print-tag %s: %s %s" hl has-child p)
+  (when (and (not has-child)(not p))
+    (princ "/"))
+  (princ "> " )
+  (when (and (not has-child)(not p))
+    (princ "\n"))
+  (when (or has-child p)
+    (if (and b p) 
+        (princ (format "\n%s%s" indent p ))
+      (princ "\n"))
+    (push tag ends)
+
+    (if (> (length contents) 0) 
+        (traverse contents))
+
+    (setf indent (make-string (- (length ends) 1) ? ))
+    (princ indent)
+    (princ "</" )
+    (princ (pop ends))
+    (princ ">\n")))
+#+end_src
+*** do-attribs-from-props
+#+begin_src elisp :results silent :tangle ~/elisp/parser.el
+(defun do-attribs-from-props ()
+  (if attribs 
+      (seq-map 
+       (lambda (o)
+         (unless 
+             (or 
+              (string= "CATEGORY" (car o))
+              (string= "CSS" (car o)))
+
+           (setq attrib-key (downcase (car o)))
+
+           (if (string= attrib-key "classname")
+               (setq attrib-key "className"))
+           (if (string= attrib-key "strokewidth")
+               (setq attrib-key "strokeWidth"))
+           (if (string= attrib-key "viewbox")
+               (setq attrib-key "viewBox"))
+
+           (if (and (if (> (length (cdr o)) 1) 
+                        (string= (substring (cdr o) 0 1) "{")))
+               (princ (format " %s=%s" attrib-key (cdr o)))
+             (princ (format " %s=\"%s\"" attrib-key (cdr o))))
+           
+           )) 
+       attribs)))
+#+end_src

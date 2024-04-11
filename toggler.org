@@ -1,0 +1,162 @@
+#+TODO: TODO | DONE
+(find-file "~/elisp/toggler.el")
+(load-file "~/elisp/toggler.el")
+* toggler
+#+name: startup
+#+begin_src emacs-lisp :results silent :tangle ~/elisp/toggler.el
+(defun toggler (e)
+  (when (or (string= (plist-get e :to) "ON") (string= (plist-get e :from) "ON"))
+    (if (org-get-outline-path)
+        ;;non-root nodes don't propogate
+        (let* ((node (org-entry-get (point) "ITEM"))
+               (state (org-entry-get (point) "TODO"))
+               (parent (car (last (org-get-outline-path)))))
+          (if (string= (plist-get e :to) "ON")
+              (progn 
+                (add-hook (intern parent) (intern node))
+                (output-lisp-string (symbol-value (intern parent)))))
+          
+          (if (string= (plist-get e :from) "ON")
+              (progn 
+                (remove-hook (intern parent) (intern node))
+                (output-lisp-string (symbol-value (intern parent))))))
+      ;;root nodes 
+      (let* ((node (org-entry-get (point) "ITEM")))
+        (setf state (plist-get e :to))
+
+        (org-map-entries
+         (lambda ()
+           (if (or (string= (plist-get e :to) "ON")
+                   (and (string= (plist-get e :from) "ON")
+                        (string= (plist-get e :to) nil)))
+               (if (= (org-current-level) 2)
+                   (if (not (string= (org-entry-get nil "TODO") state))
+                       (org-entry-put nil "TODO" state)))))
+         nil 'tree)
+        )))
+
+  )
+
+(add-hook 'org-trigger-hook 'toggler)
+#+end_src
+* check-upstream-get-point
+#+begin_src elisp :results silent :tangle ~/elisp/toggler.el
+(defun check-upstream-get-point(cond-state)
+  (setf upstream-point "scope")
+  (check-upstream cond-state)
+  upstream-point
+)
+#+end_src
+* check-upstream 
+#+begin_src elisp :results silent :tangle ~/elisp/toggler.el
+(defun check-upstream (cond-state)
+  (let* ((match nil))
+    (save-excursion
+      (while (and (not match) (> (org-outline-level) 1))
+        (outline-up-heading 1)
+        (let (
+              (state-todo (org-entry-get (point) "TODO"))
+              (state-headline (org-entry-get (point) "ITEM")) 
+              (state-prop-key (assoc (upcase cond-state) (org-entry-properties (point) 'standard)))
+              (state-prop-val (rassoc cond-state (org-entry-properties (point) 'standard)))
+              )
+          ;;(message "%s: %s %s"  state-headline cond-state (point))
+          (when (or 
+                 (string= state-todo cond-state)
+                 (string= state-headline cond-state)
+                 state-prop-key
+                 state-prop-val
+                 )
+            (setf match t)
+            (if (boundp 'upstream-point) 
+                (setf upstream-point (point)))
+            ))))match))
+  #+end_src
+
+* tests
+** write to file
+:PROPERTIES:
+:hooks-lisp:     temp.el
+:END:
+#+begin_src elisp :results silent
+(setf prop-key (org-entry-get nil "hooks-lisp"))
+(unless (or (not prop-key) (string= prop-key ""))
+  (with-temp-file prop-key
+    (insert "bogus-file-x-x")))
+#+end_src
+(find-file prop-key)
+
+** buffer
+#+begin_src elisp :results silent
+(with-output-to-temp-buffer "*bogus*"
+  (prin1 "bogus buffer"))
+(get-buffer "*bogus*")
+(switch-to-buffer "*bogus*")
+#+end_src
+
+** map test
+(type-of tree)
+(org-map-entries
+         (lambda ()
+         (message "%s" (org-entry-get (point) "ITEM"))) nil 'tree)
+*** l1
+**** l2
+**** l2
+****** l1
+** test-check-upstream
+*** TODO checks todo-state first
+**** checks headline next
+***** then property existence
+:PROPERTIES:
+:even-if-blank: 
+:END:
+****** then property value
+:PROPERTIES:
+:prop:       regardless of key
+:END:
+******* no previous siblings are checked
+(check-upstream "TODO")
+(check-upstream-get-point "TODO")
+(check-upstream "checks headline next")
+(check-upstream-get-point "even-if-blank")
+(check-upstream "even-if-blank")
+(check-upstream-get-point "even-if-blank")
+(check-upstream "regardless of key")
+(check-upstream-get-point "regardless of key")
+
+** check upstream cl-mapcar
+#+begin_src elisp :results silent :tangle no
+(defun check-upstream (cond-state) 
+  (if cond-state
+      (let* ((has-cond nil)
+             (cond-hl nil))
+        (cl-mapcar 
+         (lambda (o) 
+           (if (boundp (intern o))
+               (let* ((marker-bom (symbol-value (intern o))))
+                 (unless (not (markerp marker-bom))
+                   (setq state (org-entry-get marker-bom "TODO")) ;;will break here.
+                   (if state
+                       (if (string= state cond-state)
+                           (setf has-cond t cond-hl state)))))))
+         (org-get-outline-path))
+        ;;(message "upstream :%s is %s" cond-state cond-hl)
+        has-cond)
+    ))
+#+end_src
+Problematic
+1. org-get-outline-path produces a list of strings
+2. if one is interned then test TODO state 
+
+** output-lisp-string
+#+begin_src elisp :results silent :tangle ~/elisp/toggler.el
+(defun output-lisp-string (hook-list)
+  (setf lisp-string 
+        (concat "(setf " parent " '(" (mapconcat (lambda (h) (concat "" (symbol-name h))) hook-list " ")"))"))
+  (setf prop-key (org-entry-get nil "hooks-lisp" t))
+  (unless (or (not prop-key) (string= prop-key ""))
+    (with-temp-file prop-key
+      (insert lisp-string)))
+  ;;(message "hooks: %s %s hooks %s" prop-key (length hook-list) lisp-string)
+  )
+#+end_src

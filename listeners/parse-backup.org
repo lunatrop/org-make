@@ -1,0 +1,42 @@
+(load-file "~/elisp/parse-html-css.el")
+(find-file-other-window "~/elisp/parse-html-css.el")
+(find-file-other-window "~/org/make/parsers/html-parser.org")
+* parse-html-css
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun parse-html-css (e)
+  (if (string= (plist-get e :to) "PARSE")
+      (progn 
+        (setf stem (make-marker))
+        (set-marker stem (org-entry-beginning-position))
+        (set (intern (org-entry-get nil "ITEM")) stem)
+        (parse-stem)))
+  
+  (if (and (string= (plist-get e :from) "PARSE") (string= (plist-get e :to) nil))
+      (progn 
+        (unintern (org-entry-get (point) "ITEM")))))
+#+end_src
+
+* parse-stem
+To be called by v-trigs
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun parse-stem ()
+  (reset-parser)
+  (parse stem)
+  (output))
+
+#+end_src
+
+* output
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun output ()
+  (setf html-output
+        (with-output-to-string 
+          (princ "<!DOCTYPE html5>\n") 
+          (traverse collection)
+          ))
+  (setf css-output
+        (with-output-to-string
+          (list-classes))))
+
+#+end_src
+

@@ -1,0 +1,32 @@
+#+TODO: INTERN WILLTRIGGER TRIGGERED
+* multi
+:PROPERTIES:
+:host_All: http://lunatropolis http://lunatropolis.com ""
+:directory_All: svg jpg gif
+:filename_All: adhd.svg bizcard.svg bogus.svg Bogus%20the%20Robot.svg BogusXX.svg Calendar.svg CET.svg Convergences.svg cubic%20people.svg Diagram5.svg Diagram6.svg Diamond%20Month.svg Eugis%20Bizcard%20design.svg Helix.svg M%20C%20P.svg Month.svg mysticals.svg mysticals.wmf Pentagons.svg Sigil-Kim.svg Sigil.svg SpaceInvaderss.svg SpaceInvaders.svg SpaceInvader.svg Time.svg Year.svg
+:background-image_All: "url('http://lunatropolis/svg/adhd.svg')" "url('http://lunatropolis/svg/bizcard.svg')" "url('http://lunatropolis/svg/bogus.svg')" "url('http://lunatropolis/svg/Bogus%20the%20Robot.svg')" "url('http://lunatropolis/svg/BogusXX.svg')" "url('http://lunatropolis/svg/Calendar.svg')" "url('http://lunatropolis/svg/CET.svg')" "url('http://lunatropolis/svg/Convergences.svg')" "url('http://lunatropolis/svg/cubic%20people.svg')" "url('http://lunatropolis/svg/Diagram5.svg')" "url('http://lunatropolis/svg/Diagram6.svg')" "url('http://lunatropolis/svg/Diamond%20Month.svg')" "url('http://lunatropolis/svg/Eugis%20Bizcard%20design.svg')" "url('http://lunatropolis/svg/Helix.svg')" "url('http://lunatropolis/svg/M%20C%20P.svg')" "url('http://lunatropolis/svg/Month.svg')" "url('http://lunatropolis/svg/mysticals.svg')" "url('http://lunatropolis/svg/mysticals.wmf')" "url('http://lunatropolis/svg/Pentagons.svg')" "url('http://lunatropolis/svg/Sigil-Kim.svg')" "url('http://lunatropolis/svg/Sigil.svg')" "url('http://lunatropolis/svg/SpaceInvaderss.svg')" "url('http://lunatropolis/svg/SpaceInvaders.svg')" "url('http://lunatropolis/svg/SpaceInvader.svg')" "url('http://lunatropolis/svg/Time.svg')" "url('http://lunatropolis/svg/Year.svg')"
+:END:
+** push prop to .target                                           :filename:
+:PROPERTIES:
+:host:     http://lunatropolis
+:directory: svg
+:filename: Diamond%20Month.svg
+:END:
+#+begin_src elisp :results silent
+
+(setf target-bom .target)
+(setf url (concat "\"" "url('" (org-entry-get nil "host" t) "/" (org-entry-get nil "directory" t) "/" (org-entry-get nil "filename" t) "')" "\"" ))
+(org-entry-put target-bom "background-image" url)
+
+
+#+end_src
+** push value to multi
+#+begin_src elisp :results silent
+(setf ancestor-bom multiulti)
+(org-entry-add-to-multivalued-property ancestor-bom "background-image_All" url)
+#+end_src
+* .target
+:PROPERTIES:
+:background-image: "url('http://lunatropolis/svg/Diamond%20Month.svg')"
+:END:
+

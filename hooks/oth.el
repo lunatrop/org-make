@@ -1,0 +1,1 @@
+(setf org-trigger-hook '(intern-headline parse-html-css json-hl buffer-open to-file to-indium toggler))

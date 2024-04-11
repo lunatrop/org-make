@@ -1,0 +1,56 @@
+(find-file "~/elisp/incdec.el")
+[[https://www.emacswiki.org/emacs/IncrementNumber][emacswiki]]
+(org-property-next-allowed-value &optional PREVIOUS)
+(org-property-get-allowed-values)
+(org-at-property-p)
+(run-hook-with-args 'org-property-changed-functions key nval)))
+[[file:c:/Program Files/Emacs/x86_64/share/emacs/27.1/lisp/org/org.el::(run-hook-with-args 'org-property-changed-functions key nval)))][run propchange hook]]
+
+* prop-incdec
+#+begin_src elisp :results silent :tangle ~/elisp/incdec.el
+(defun prop-incdec ()
+  (interactive)
+  (unless (org-at-property-p)
+    (user-error "Not at a property"))
+  (let* ((prop (car (save-match-data (org-split-string (match-string 1) ":"))))
+	    (key (match-string 2))
+	    (value (match-string 3))
+	    (heading (save-match-data (nth 4 (org-heading-components)))))
+    ;;(message "%s %s %s %s" prop key value heading )
+    (run-hook-with-args 'org-property-changed-functions key value)))
+#+end_src
+* incdec
+:PROPERTIES:
+:p1:       11
+:END:
+#+begin_src elisp :results silent :tangle ~/elisp/incdec.el
+(defun incdec ()
+  (defun increment-number-at-point ()
+    (interactive)
+    (skip-chars-backward "0-9")
+    (or (looking-at "[0-9]+")
+        (error "No number at point"))
+    (replace-match (number-to-string (1+ (string-to-number (match-string 0)))))
+    (progn
+      (message "incdex +" )
+      ;;(run-hooks 'v-trig-list)
+      (prop-incdec)
+))
+  (defun decrement-number-at-point ()
+    (interactive)
+    (skip-chars-backward "0-9")
+    (or (looking-at "[0-9]+")
+        (error "No number at point"))
+    (replace-match (number-to-string (1- (string-to-number (match-string 0)))))
+    (progn
+      (message "incdex -")
+      ;;(run-hooks 'v-trig-list)
+      (prop-incdec)
+))
+  (global-set-key (kbd "M-+") 'increment-number-at-point)
+  (global-set-key (kbd "M-_") 'decrement-number-at-point))
+(incdec)
+#+end_src
+
+
+

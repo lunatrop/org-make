@@ -1,0 +1,144 @@
+(find-file "~/elisp/indium.el")
+(load-file "~/elisp/indium.el")
+* state
+** setup
+#+begin_src elisp :results silent :tangle ~/elisp/indium.el
+(setq default-host "http://lunatropolis")
+(setq document-root "~/www/public_html")
+
+(defun indium-repl-setup ()
+  "Create but don't switch to the REPL buffer."
+  ;;(switch-to-buffer (indium-repl-get-buffer-create))
+  (indium-repl-get-buffer-create))
+#+end_src
+** to-indium
+#+begin_src elisp :results silent :tangle ~/elisp/indium.el
+(defun to-indium (&optional e) (interactive)
+       (if (string= (plist-get e :to) "INDIUM")
+           ;;don't allow nested
+           (if (or (check-upstream "INDIUM")
+                   (check-upstream "PARSE"))
+               (org-todo "")
+             ;;start indium
+             (set-indium-json)
+             ;;(seethru 100)
+             (lunacy)))
+
+       (unless (check-upstream "INDIUM")
+         (if (string= (plist-get e :from) "INDIUM")
+             (progn
+               (cd "~/org/make/structures")
+               ;;(seethru 100)
+               (indium-close)
+               ))))
+#+end_src
+* write indium.json
+#+begin_src elisp :results silent :tangle "~/elisp/indium.el"
+(defun set-indium-json ()
+  ;;create host for "url" json property
+  (unless (or (not (boundp 'stem)) (not (markerp stem)))
+    ;;do URL string for html file
+    ;;default: uses HL as html file to launch
+    
+    (if (org-entry-get stem "html")
+        (setq path (car (last (string-split (org-entry-get stem "html") document-root))))
+      (setq path (concat "/css/" (org-entry-get stem "ITEM") ".html")))
+
+    (setq url (concat default-host path))
+    (message "indium url: %s" url)
+    ;;do JSON
+    (setf indium-json 
+            `(:configurations 
+              [(:url ,url :name "Lunatropolis" :host lunatropolis :type chrome)]))
+
+    ;;do JSON file
+    (if (org-entry-get stem "indium")
+        (setq indium-json-file (concat (org-entry-get stem "indium") "/.indium.json"))
+      (setq indium-json-file (concat document-root "/.indium.json")))
+
+    ;;write JSON
+    (progn
+      (message "write %s %s" indium-json-file indium-json)
+      (with-temp-file indium-json-file
+        (insert (princ (json-encode indium-json)))
+        (json-pretty-print (point-min)(point-max))))))
+#+end_src
+
+* lunacy
+#+begin_src elisp :results silent :tangle ~/elisp/indium.el
+(defun lunacy()
+  ;;(message ".indium.json. %s" (org-entry-get nil "indium"))
+  (let* ()
+    (setq process-connection-type t)
+    ;;(setq org-babel-js-cmd "indium") 
+    (if (get-buffer "*JS REPL*")
+        (indium-close))
+    (if (and (markerp stem) (marker-buffer stem))
+        (progn
+          (if (org-entry-get stem "indium") ;;get stem or point?
+              (cd (org-entry-get stem "indium"))
+            (cd default-dir))
+          (indium-launch)
+          ))
+    ))
+#+end_src
+
+* close
+#+begin_src elisp :results silent :tangle ~/elisp/indium.el
+(defun indium-close ()
+  ;;(setq org-babel-js-cmd "node")
+  (when json-process-client--application 
+    (indium-eval "console.log('close')")
+    (indium-eval "window.close()")
+    (message "window.close()"))
+  (when (get-buffer "*JS REPL*")
+      ;;(indium-close)
+      (indium-quit)))
+
+
+#+end_src
+* chrome-reload
+TIL: 'id' attributes evaluates to HTMLElement
+TIL: setting outerHTML will ghost it's hosting variable
+'id' attribute has a clause for 'nodeReload()' to do babel script tags...
+#+begin_src elisp :results silent :tangle ~/elisp/indium.el
+(defun chrome-reload ()
+  (setf dom-id (org-entry-get nil "id" t))
+  (setf node-output "'bogus'")
+  ;;(message "is form: %s" (check-upstream "form"))
+  (if (check-upstream "INDIUM") 
+      (if (or (not dom-id) (check-upstream "form"))
+          (indium-reload)
+        (node-reload))))
+#+end_src
+* node-reload
+#+begin_src elisp :results silent :tangle ~/elisp/indium.el
+(defun node-reload()
+  ;;(indium-eval "console.log('emacs node-reload')")
+  (save-excursion
+    (setf DOMFrag (make-marker))
+    (goto-char (check-upstream-get-point "id"));;should be text/jsx
+    (org-up-heading-all 1)
+    
+    (set-marker DOMFrag (org-entry-beginning-position))
+    (collect DOMFrag)
+    (org-goto-first-child))
+
+  (setf node-output
+        (with-output-to-string 
+          (traverse collection)))
+
+  (setf eval-str (concat "reloadNode( \`" dom-id "\` ,\`" node-output  "\` )"  ));;,\`" root-id "\`,\`" component "\`
+  ;;(message "%s" eval-str)
+  ;;(indium-eval "console.log('indium-eval')")
+  (indium-eval eval-str)
+  )
+#+end_src
+1. get tag id at point
+2. get stem at point and intern
+3. collect (stem) , 'collection' is now populated
+4. setf node-output to traverse
+5. node-output innerHTML so indium-eval reloadNode(node-output)
+   - has to be outerHTML to get all children of present stem to make fragment
+6. reloadNode takes an id which evaluates 
+

@@ -1,0 +1,33 @@
+#+TODO: WILLTRIGGER TRIGGERED
+(find-file "~/elisp/stacker.el")
+* stacker
+#+begin_src elisp :results silent :tangle ~/elisp/stacker.el
+(defun stacker (key v)
+  ;;(message "stack: %s %s" key v)
+  (unless (boundp 'pre-v)
+    (setq pre-v ""))
+
+  (unless (boundp 'current-v)
+    (setq current-v ""))
+  (unless (eq pre-v 'none)
+      ;;if a property exists in the drawer:
+      (if (string= (org-entry-get (point) pre-v t) "")
+          ;;but has no value remove this property:
+          (org-delete-property pre-v)))
+
+  ;;make way for a new value 
+  (setq pre-v current-v)
+  (setq current-v v)
+  
+  ;;If this property change event is without a value:
+  (if (string= v "")
+      ;;the property name itself will now be stored
+      ;;the event value is now the key
+      (setq current-v key))
+
+  ;;pull values for this key from any _All list above
+  (unless (eq current-v 'none)
+  (if (not (org-entry-get (point) current-v t))
+      (if (org-entry-get (point) (concat current-v "_All") t)
+          (org-entry-put (point) current-v "")))))
+#+end_src

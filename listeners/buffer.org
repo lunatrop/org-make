@@ -1,0 +1,96 @@
+(find-file "~/elisp/to-buffer.el")
+(load-file "~/elisp/to-buffer.el")
+
+* state
+#+begin_src elisp :results silent :tangle ~/elisp/to-buffer.el
+(defun buffer-open (e)
+  (setf buffer-splitters '("PARSE" "JSON"))
+  (unless (check-upstream "INDIUM")
+    (when (member (plist-get e :to) buffer-splitters) 
+      (to-buffer)))
+  (when (member (plist-get e :from) buffer-splitters) 
+      (close-buffers)))
+#+end_src
+* to buffer
+- add/remove from  v-trig-list
+#+begin_src elisp :results silent :tangle ~/elisp/to-buffer.el
+(defun to-buffer (&optional e)
+  (when (or (and (boundp 'html-output) (check-upstream "PARSE"))
+            (string= (org-entry-get nil "TODO") "PARSE"))
+    ;;(message "to-buffer html split")
+    (delete-other-windows)
+    (with-output-to-temp-buffer "*html*"
+      (princ html-output))
+    (with-current-buffer "*html*"
+      (setq file-name-coding-system 'utf-8)
+      (setf buffer-read-only nil)
+      (web-mode)
+      ;;(web-mode-buffer-indent)
+      ;;(web-beautify-html)
+      ))
+
+  (when (or (and (boundp 'css-output) (check-upstream "PARSE"))
+            (string= (org-entry-get nil "TODO") "PARSE"))
+    ;;(unless (boundp 'saved-css-win-pos) (setf saved-css-win-pos nil))
+    ;;(message "to-buffer css split")
+    (windmove-right)
+    (with-output-to-temp-buffer "*css*"
+      (princ css-output))
+    (with-current-buffer "*css*"
+      (setf buffer-read-only nil)
+      ;;(web-mode-buffer-indent)
+      ;;(web-beautify-css)
+      (css-mode))
+    (windmove-left))
+
+  (when (or (and (boundp 'json-output) (check-upstream "JSON"))
+            (string= (org-entry-get nil "TODO") "JSON"))
+    ;;(message "split-window json")
+    (delete-other-windows)
+    (with-output-to-temp-buffer "*json*"
+      (princ json-output))
+    (with-current-buffer "*json*"
+      ;;(setq file-name-coding-system 'utf-8)
+      (js-mode))
+    ;;(view-echo-area-messages)
+    ))
+#+end_src
+
+* reload
+#+begin_src elisp :results silent :tangle ~/elisp/to-buffer.el
+(defun buffer-reload ()
+  (when (check-upstream "JSON")
+    (setf saved-json-win-pos (window-start (get-buffer-window "*json*")))
+    (with-current-buffer "*json*" (setf saved-json-scale text-scale-mode-amount))
+    (to-buffer)
+
+    (set-window-start (get-buffer-window "*json*") saved-json-win-pos)
+    (with-current-buffer "*json*" (text-scale-set saved-json-scale)))
+
+  (when (check-upstream "PARSE")
+    (setf saved-html-win-pos (window-start (get-buffer-window "*html*")))
+    (with-current-buffer "*html*" (setf saved-html-scale text-scale-mode-amount))
+    
+    (setf saved-css-win-pos (window-start (get-buffer-window "*css*")))
+    (with-current-buffer "*css*" (setf saved-css-scale text-scale-mode-amount))
+
+    (to-buffer)
+
+    (set-window-start (get-buffer-window "*html*") saved-html-win-pos)
+    (with-current-buffer "*html*" (text-scale-set saved-html-scale))
+
+    (set-window-start (get-buffer-window "*css*") saved-css-win-pos)
+    (with-current-buffer "*css*" (text-scale-set saved-css-scale))))
+#+end_src
+* close
+#+begin_src elisp :results silent :tangle ~/elisp/to-buffer.el
+ (defun close-buffers ()
+  (if (get-buffer "*json*")
+      (kill-buffer "*json*"))
+  (if (get-buffer "*html*")
+      (kill-buffer "*html*"))
+  (if (get-buffer "*css*")
+      (kill-buffer "*css*"))
+  (delete-other-windows))
+#+end_src
+

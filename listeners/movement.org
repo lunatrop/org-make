@@ -1,0 +1,94 @@
+(start-tree-hooks)
+(stop-tree-hooks)
+(clear-all)
+(find-file "~/elisp/v-defuns.el")
+(load-file "~/elisp/v-defuns.el")
+1. check-upstream for PARSE 
+   v function checks
+   check-upstream is in toggler.el
+
+2. advice functions are causing problems with other buffers
+
+3. promote-demote  are firing v() on every subtree item
+   - "When a subtree is being promoted, the hook will be called for each node." 
+   - look for promote-demote 'complete' event.
+     [[file:c:/Program Files/Emacs/x86_64/share/emacs/27.1/lisp/org/org.el::(org-fix-position-after-promote))][org-promote-subtree]]
+4. stop and start tree hooks on 
+   - (de)activating v-k-v hook
+   - or on (de)activating parse
+
+* init
+#+begin_src elisp :results silent :tangle ~/elisp/v-defuns.el
+(setf tree-edit nil)
+(setf v-trig-list nil)
+(setf movement-hooks nil)
+(setf advice nil)
+
+(defun start-tree-hooks()
+  (add-v-hooks)
+  (add-advice) 
+  (message "tree hooks on"))
+
+(defun stop-tree-hooks()
+  (remove-v-hooks)
+  (remove-advice)
+  (message "tree hooks off"))
+
+(defun clear-all ()
+  (setf tree-edit nil)
+  (setf v-trig-list nil)
+  (setf movement-hooks nil)
+  (setf advice nil)
+  (message "tree hooks clear"))
+(message "v-trig init")
+#+end_src
+
+* hooks
+#+begin_src elisp :results silent :tangle ~/elisp/v-defuns.el
+(defun add-v-hooks ()
+  (setq org-insert-heading-hook '((lambda () (v "insert") nil)))
+  (setq org-after-delete-entry-hook '((lambda () (v "delete") nil))))
+(defun remove-v-hooks ()
+  (setq org-insert-heading-hook nil)
+  (setq org-after-delete-entry-hook nil))
+#+end_src
+
+* advice
+This is causing weird shit to happen
+#+begin_src elisp :results silent :tangle ~/elisp/v-defuns.el
+(defun move-up-advice (x)(v "up-advice") )
+(defun move-down-advice (x)(v "down-advice"))
+(defun promote-complete-advice (x)(v "promote"))
+(defun demote-complete-advice (x)(v "demote"))
+
+(defun add-advice ()
+  (advice-add 'org-org-promote-subtree :after #'promote-complete-advice)
+  (advice-add 'org-org-demote-subtree :after #'demote-complete-advice)
+  (advice-add 'org-move-subtree-down :after  #'move-down-advice)
+  (advice-add 'org-move-subtree-up :after #'move-up-advice))
+
+(defun remove-advice ()
+  (advice-remove 'org-move-subtree-up #'move-up-advice)
+  (advice-remove 'org-move-subtree-down #'move-down-advice))
+#+end_src
+
+
+* v
+#+BEGIN_SRC elisp :results silent :tangle ~/elisp/v-defuns.el
+(defun v (&optional arg) 
+  (if (or 
+       (check-upstream "PARSE")
+       (check-upstream "INDIUM")
+       (check-upstream "JSON"))
+      (progn
+        ;;(message "vx %s" arg)
+        (run-hooks 'v-trig-list))))
+#+end_src
+
+* v-k-v
+Is this because k and v are mandatory for opcf?
+#+begin_src elisp :results silent :tangle ~/elisp/v-defuns.el
+(defun v-k-v (k v)
+  ;;(message "v-k-v %s %s" k v)
+  (v))
+#+end_src

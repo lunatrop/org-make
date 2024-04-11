@@ -1,0 +1,13 @@
+#+TODO: ON
+* v-trig-list
+(list v-trig-list)
+** chrome-reload
+(find-file "~/org/dev/hooks/indium.org")
+** write-file
+Uses "stem" intern
+(find-file "~/org/dev/hooks/to-file.org")
+** buffer-reload
+(find-file "~/org/dev/hooks/to-buffer.org")
+** parse-stem
+(find-file "~/org/dev/hooks/parse-node.org")
+

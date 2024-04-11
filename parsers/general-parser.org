@@ -1,0 +1,53 @@
+* backup
+<2022-12-15 Thu>
+* general-parser.el
+#+begin_src elisp :results silent :tangle "~/elisp/general-parser.el"
+(defun indent(lvl)
+  (setf lf "\n")
+  (princ (concat lf (make-string (- lvl s-lvl 1) ? ))))
+
+(defun has-child()
+  (save-excursion 
+    (org-goto-first-child)))
+
+
+(defun general-parser(bmk)
+  (save-excursion
+    (org-goto-marker-or-bmk json-marker)
+    (setq s-lvl (org-current-level))
+    (org-goto-first-child)
+    (setq ends nil)
+    
+    (org-map-entries 
+     (lambda()
+       (setq p-lvl (org-get-previous-line-level))
+       (when (= p-lvl 0)(setq p-lvl 1))
+       (when (< p-lvl s-lvl)(setq p-lvl s-lvl))
+       (setq c-lvl (org-current-level))
+
+       (dotimes (c (- p-lvl c-lvl))
+         (indent (- p-lvl c 1))
+         (princ(format "%s" (car (pop ends)))))
+       
+       (dotimes (c (- c-lvl p-lvl))
+         (when (> c 0)
+           (indent (+ p-lvl c))
+           (princ (format "{"))
+           (push (cons "}" (+ p-lvl c)) ends)))
+
+       ;;(message "hl: %s start: %s current: %s  previous: %s  " (org-entry-get (point) "ITEM") s-lvl c-lvl p-lvl )
+
+       (when (> (- p-lvl s-lvl) 0) (indent c-lvl))
+       (princ(format"{%s" (org-entry-get (point) "ITEM")))
+       (push (cons "}" c-lvl) ends)
+       
+       (unless (has-child)
+         (indent c-lvl)
+         (princ(format "%s" (car (pop ends))))
+         )) nil 'tree))
+
+  (mapcar (lambda(x)
+            (indent(cdr x))
+            (princ (format "%s" (car x)))) ends))
+#+end_src
+

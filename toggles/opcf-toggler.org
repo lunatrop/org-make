@@ -1,0 +1,10 @@
+#+TODO: ON
+* org-property-changed-functions
+** ON v-k-v
+(list v-trig-list)
+(find-file "../listeners/movement.org")
+** ON prop-change                                                          
+(find-file "../listeners/willtrigger.org")
+** ON stacker
+(find-file "../listeners/stacker.org")
+

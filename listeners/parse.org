@@ -1,0 +1,159 @@
+#+STARTUP: showall
+(load-file "~/elisp/parse-html-css.el")
+(find-file "~/elisp/parse-html-css.el")
+(find-file-other-window "~/org/make/parsers/html-parser.org")
+* parse-html-css
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun parse-html-css (e)
+  (when 
+      (and 
+       (boundp 'e)
+       (string= (plist-get e :to) "PARSE"))
+    (if
+        (or 
+         (check-upstream "PARSE")
+         (check-upstream "INDIUM")) 
+        (org-todo "")
+
+      (start-tree-hooks)
+
+      (setf stem (make-marker))
+      (set-marker stem (org-entry-beginning-position))
+      (set (intern (org-entry-get nil "ITEM")) stem)
+      (parse-stem)))
+
+  (when 
+      (and 
+       (not (check-upstream "PARSE"))
+       (not (check-upstream "INDIUM"))
+       (string= (plist-get e :from) "PARSE")
+       (string= (plist-get e :to) nil))
+    (stop-tree-hooks)
+    (makunbound 'html-output)
+    (makunbound 'css-output)
+    (unintern (org-entry-get (point) "ITEM"))))
+#+end_src
+* parse-stem
+v-trigs
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun parse-stem ()
+  ;;(setf parse-roots '("PARSE" "INDIUM"))
+  (when (or (check-upstream "PARSE")
+            (check-upstream "INDIUM")
+            (and (boundp 'e)(string= (plist-get e :to) "PARSE")))
+    (reset-parser)
+    (collect stem)
+    (store-as-strings)))
+#+end_src
+* list classes
+(setq debug-on-error t)
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun list-classes (css-entries)
+  (setf end-brackets nil)
+  (do-level css-entries))
+#+end_src
+(find-file "~/org/make/parsers/html-parser.org")
+** do-level
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun do-level (entries)
+  (seq-map-indexed 
+   (lambda (entry ruleNum) ;;ruleNum to be used for css object model
+     (setf indent (make-string (length end-brackets) ? ))
+     (princ indent)
+     (push t end-brackets)
+     (print-id (car entry))
+     (when (and (string-match-p "@" (car entry))
+                (not (string-match-p "@font-face" (car entry)))) 
+       (setf sub-list (cdr entry))
+       (do-level sub-list))
+     
+     (unless (string-match-p "@" (car entry)) 
+       (print-leaf (cdr entry)) 
+       (princ indent))
+
+     (when (string-match-p "@font-face" (car entry))
+       (print-leaf (cdr entry)) 
+       (princ indent))
+
+     (print-end))
+   (nreverse (seq-uniq entries))))
+#+end_src
+** print-id
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun print-id (headline)
+  (princ headline)
+  (princ " { \n"))
+#+end_src
+
+** print-leaf 
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun print-leaf (props)
+  (seq-map
+   (lambda (param)
+     (unless (or 
+              (not (consp param))
+              (string= "CATEGORY" (car param))
+              (string= "CSS" (car param)))
+       (princ "    ")
+       (princ (downcase (car param)))
+       (princ " : ")
+       (princ (cdr param))
+       (princ "; \n" )
+       ))
+   (reverse props)))
+#+end_src
+
+** print-end
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun print-end ()
+  (pop end-brackets)
+  (setf indent (make-string (length end-brackets) ? ))
+  (princ indent)
+  (princ "} ")
+  (princ "\n"))
+#+end_src
+
+
+* store-as-strings
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun store-as-strings ()
+  (setf html-output
+        (with-output-to-string 
+          (princ "<!DOCTYPE html5>\n") 
+          (traverse collection)))
+  (setf css-output
+        (with-output-to-string
+          (list-classes class-list))))
+#+end_src
+
+
+
+
+* output-react
+#+begin_src elisp :results silent :tangle ~/elisp/parse-html-css.el
+(defun output-react ()
+  (setf html-output
+        (with-output-to-string 
+          ;;(princ "<!DOCTYPE html5>\n") 
+          ;;(princ "import logo from './logo.svg';\n")
+          (princ "import './fonts.css';\n")
+          (princ "import './App.css';\n")
+          (princ "import './desktop.css';\n")
+          (princ "import './mobile.css';\n")
+
+
+          (princ "function App(){\n")
+          (princ "    return(\n")
+
+          (traverse collection)
+
+          (princ "    );\n")
+          (princ "}")
+          (princ "export default App;")))
+  
+  (setf css-output (with-output-to-string (list-classes class-list))) 
+)
+
+#+end_src
+
+

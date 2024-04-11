@@ -1,0 +1,69 @@
+#+SEQ_TODO: WILLTRIGGER | TRIGGERED
+(find-file "~/elisp/willtrigger.el")
+Nested triggers: check-upstream
+* prop-change
+tangle set file once.
+#+begin_src elisp :results silent :tangle ~/elisp/willtrigger.el
+(defun prop-change (key val)
+  (if (string= (org-entry-get nil "TODO") "WILLTRIGGER")
+      (exe-subtree)))
+
+(defun exe-subtree ()
+  (org-entry-put nil "TODO" "TRIGGERED")
+  (org-babel-execute-subtree)
+  (org-todo "WILLTRIGGER"))
+#+end_src
+
+** state
+#+begin_src elisp :results silent :tangle ~/elisp/willtrigger.el
+(if (string= (org-entry-get nil "TODO")  "WILLTRIGGER")
+    (exe-subtree))
+(add-hook 'org-property-changed-functions 'prop-change)
+#+end_src
+
+* test
+:PROPERTIES:
+:10_All:   1 2 3 4 5
+:1_All:    1 2 3 4 5
+:10:       2
+:1:        3
+:sum:      5
+:END:
+Modify own properties   
+#+begin_src elisp :results silent
+  (org-entry-put nil "sum" (number-to-string (+ (string-to-number (org-entry-get nil "10")) (string-to-number (org-entry-get nil "1")))))
+  (format "%s + %s + %s" (org-entry-get nil "10") (org-entry-get nil "1") (org-entry-get nil "sum"))
+#+end_src
+
+** subtree-exe-1
+#+begin_src elisp :results silent
+(message "%s" (org-entry-get nil "ITEM"))
+#+end_src
+*** subtree-exe-2 
+#+begin_src elisp :results silent
+(message "%s" (org-entry-get nil "ITEM"))
+#+end_src
+*** subtree-exe-2-sibling
+#+begin_src elisp :results silent
+(message "%s sum %s" (org-entry-get nil "ITEM") (org-entry-get nil "sum" t))
+#+end_src
+* tangler notes
+** comments
+:PROPERTIES:
+:comments_All: no link yes org both noweb
+:comments: org
+:END:
+
+** mkdirp no yes
+** org-babel-tangle-jump-to-org
+** shebangs for executables
+** tangle-mode
+** org-publish
+** filenames
+Export the code block to source file whose file name is derived
+from any string passed to the ‘tangle’ header argument.  Org
+derives the file name as being relative to the directory of the Org
+file’s location
+The file name for the source
+file is derived from the name of the Org file, and the file
+extension is derived from the source code language identifier.

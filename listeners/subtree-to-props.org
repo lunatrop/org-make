@@ -1,0 +1,84 @@
+#+TODO: INTERN
+!Must expand node to work
+(load-file "~/elisp/subtree-to-props.el")
+(find-file "~/elisp/subtree-to-props.el")
+* delete props
+#+begin_src elisp :results silent :tangle ~/elisp/subtree-to-props.el
+(defun delete-props ()
+  (mapcar (lambda (x) (org-entry-delete nil x)) 
+          (mapcar 'car (cdr (org-entry-properties nil 'standard)))))
+#+end_src
+* subtree-to-props
+#+BEGIN_SRC elisp :results silent :tangle yes :noweb yes :tangle ~/elisp/subtree-to-props.el
+(defun subtree-to-props (&optional op) (interactive)
+       (delete-props)
+       (setf start-level (org-current-level)) 
+       (save-excursion 
+         (org-back-to-heading)
+         (org-show-subtree)
+         (org-map-entries 'put-prop nil 'tree)))
+#+END_SRC
+* put-prop
+#+begin_src elisp :results silent :noweb yes :noweb-ref put-prop :tangle ~/elisp/subtree-to-props.el
+(defun put-prop () 
+  (setf key (org-entry-get (point) "ITEM")) 
+  (unless 
+      (or (> (org-current-level) (+ start-level 1)) 
+          (= (org-current-level) start-level))
+    (setf prop (org-entry-get (point) "ITEM"))
+    (if (org-goto-first-child)
+        (progn 
+          (setf val (org-entry-get nil "ITEM"))
+          ;;(message "val: %s" val)
+          (save-excursion
+            (outline-up-heading 2)
+            (org-entry-put nil key val))
+          )))
+  (if (= (org-current-level) (+ start-level 2))
+      (if (save-excursion (or (org-goto-sibling)(org-goto-sibling t)))
+          (add-multi))))
+  #+end_src
+
+* add multi 
+called if at 3rd level 
+#+begin_src elisp :results silent :tangle ~/elisp/subtree-to-props.el
+(defun add-multi (&optional p)
+  (save-excursion 
+    (outline-up-heading 1)
+    (message "multi: %s" (org-entry-get nil "ITEM"))
+    (setf prop-all (concat (org-entry-get nil "ITEM") "_All" )))
+  (setf value (org-entry-get nil "ITEM"))
+  (save-excursion ;;seems to narrow the org node so there is no level above
+    (outline-up-heading 2) ;;can't get to 3 above
+    (org-entry-add-to-multivalued-property nil prop-all value)))
+#+end_src
+* key-stroke
+#+BEGIN_SRC elisp :results silent :tangle yes :noweb yes :noweb-ref keymap :tangle no
+(global-set-key 
+ (kbd "C-x M-e M-u p")
+ (lambda () (interactive) (subtree-to-props nil)))
+#+END_SRC
+(global-unset-key (kbd "C-x M-e M-u p"))
+
+* multi
+
+* test
+** p2
+*** pv2
+*** pv3
+** p1
+*** v1 
+(outline-up-heading 4)
+(save-excursion
+(or (org-goto-sibling)(org-goto-sibling t)))
+
+** p3
+*** 1v
+** p4
+*** vq
+
+*** vw
+
+*** ve
+(save-excursion
+(or (org-goto-sibling)(org-goto-sibling t)))

@@ -1,0 +1,39 @@
+#+PROPERTY: header-args :tangle ~/elisp/json-hl.el
+#+TODO: JSON
+
+(find-file "~/elisp/json-hl.el")
+(load-file "~/elisp/json-hl.el")
+(find-file "~/org/make/parsers/org-map-parser.org")
+(find-file "~/org/make/transcoder-json.org")
+(find-file "~/org/make/transcoder-zero.org")
+(dired-other-window "~/org/dev/JSON/")
+[[file:c:/Users/eugen/iCloudDrive/org/dev/JSON][file:c:/Users/eugen/iCloudDrive/org/dev/JSON]]
+* json-hl
+basic form of hook module 
+#+begin_src elisp :results silent 
+;;(require 'json)
+(defun json-hl (e)
+  (message "json-hl.el")
+  (when (string= (plist-get e :to) "JSON")
+    (start-tree-hooks)
+    (setf json-marker (make-marker)) 
+    (set-marker json-marker (org-entry-beginning-position))
+    (set (intern (org-entry-get (point) "ITEM")) json-marker)
+    (setf json-output "{:}")
+    (json-out))
+  (when (string= (plist-get e :from) "JSON")
+    (stop-tree-hooks)
+    (makunbound 'json-output)
+    (unintern (org-entry-get (point) "ITEM"))))
+#+end_src
+* json-out
+#+begin_src elisp :results silent 
+(defun json-out()
+  (when 
+      (or (check-upstream "JSON")
+          (string= (org-entry-get (point) "TODO")"JSON"))
+    (setf json-output 
+          (with-output-to-string 
+            (princ (encode (marked-subtree-elements)))))
+    ))
+#+end_src

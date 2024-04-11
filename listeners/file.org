@@ -1,0 +1,76 @@
+(find-file "~/elisp/to-file.el")
+(load-file "~/elisp/to-file.el")
+* todo hook
+#+begin_src elisp :results silent :tangle ~/elisp/to-file.el
+(defun to-file (&optional e)
+  (setq default-dir "~/www/public_html/css")
+  (when (or (string= (plist-get e :to) "PARSE") 
+            (string= (plist-get e :to) "INDIUM")
+            (check-upstream "PARSE")
+            (check-upstream "INDIUM"))
+    (write-to-html-css))
+
+  (when (or (string= (plist-get e :to) "JSON") 
+            (check-upstream "JSON"))
+    (write-json-to-file)))
+
+#+end_src
+* write-to-html-css
+#+begin_src elisp :results silent :tangle ~/elisp/to-file.el
+(defun write-to-html-css (&optional arg)
+  (let* ((coding-system-for-write 'utf-8)) 
+    (if (boundp 'stem)
+        (if (and (markerp stem)
+                 (marker-buffer stem))
+            (progn 
+              (if (org-entry-get stem "html")
+                  ;;has a prop for html file
+                  (progn
+                    ;;make directory if file doesn't exist
+                   (unless (file-exists-p (org-entry-get stem "html"))
+                     (setq project-dir (file-name-directory (org-entry-get stem "html")))
+                     (unless (file-exists-p project-dir)
+                       (make-directory project-dir t)))
+                   (with-temp-file (org-entry-get stem "html")
+                     (when (boundp 'html-output) 
+                       (insert html-output))))
+                ;;no html file property
+                (setf dot-html (concat default-dir "/" (org-entry-get stem "ITEM") ".html"))
+                (message "%s %s" dot-html (file-exists-p dot-html))
+                (with-temp-file dot-html ;;"~/www/public_html/css" + "/" + headline
+                  (when (boundp 'html-output) 
+                    (insert html-output))))
+
+              (if (org-entry-get stem "css")
+                  (progn
+                    (unless (file-exists-p (org-entry-get stem "css"))
+                      (setq project-dir (file-name-directory (org-entry-get stem "html")))
+                      (unless (file-exists-p project-dir)
+                        (make-directory project-dir t))
+                      )
+                    (with-temp-file (org-entry-get stem "css")
+                      (if (boundp 'css-output) 
+                          (insert css-output))))
+                ;;no css file property
+                (with-temp-file (concat default-dir "/" (org-entry-get stem "ITEM") ".css")
+                  (if (boundp 'css-output) 
+                      (insert css-output)))))))))
+#+end_src
+* touch
+#+begin_src elisp :results silent
+(shell-command (concat "touch " (org-entry-get stem "html")))
+(shell-command (concat "ls " (org-entry-get stem "html")))
+(setq project-dir (file-name-directory (org-entry-get stem "html")))
+(unless (file-exists-p project-dir)
+  (make-directory project-dir t))
+(dired project-dir)
+#+end_src
+* json
+#+begin_src elisp :results silent :tangle ~/elisp/to-json-file.el
+(defun write-json-to-file (&optional arg)
+  (if (org-entry-get json-marker "json")
+      (with-temp-file (org-entry-get json-marker "json")
+        (if json-output
+            (insert json-output)))
+    ))
+#+end_src

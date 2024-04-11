@@ -1,0 +1,24 @@
+#+TODO: ON
+* ON org-trigger-hook
+** ON to-indium
+(find-file "~/org/dev/hooks/indium.org")
+(load-file "~/elisp/indium.el")
+** ON to-file
+Uses "stem"
+(find-file "~/org/dev/hooks/to-file.org")
+(load-file "~/elisp/to-file.el")
+** ON buffer-open
+If this is on open buffers to view output
+Presumes "traverse"
+(find-file "~/org/dev/hooks/to-buffer.org")
+(load-file "~/elisp/to-buffer.el")
+(find-file "~/elisp/to-buffer.el")
+** ON parse-html-css
+Interns "stem"
+(find-file "~/org/dev/hooks/parse-node.org") 
+Has a html wrapper 
+- traverse() and list-classes() are called within these wrappers
+
+(load-file "~/elisp/parse-html-css.el")
+(find-file "~/elisp/parse-html-css.el")
+

@@ -1,0 +1,18 @@
+* todo state change
+#+begin_src elisp :results silent :tangle ~/elisp/css-vtrigs.el
+(defun css-vtrigs (e)
+  (if (string= (plist-get e :to) "CSS")
+      (progn 
+        (message "CSS subclass on: %s" (org-entry-get nil "ITEM"))
+        (setf css-marker (make-marker))
+        (set-marker css-marker (org-entry-beginning-position))
+        (set (intern (org-entry-get (point) "ITEM")) css-marker)
+        (run-hooks 'v-trig-list)))
+
+  (if (string= (plist-get e :from) "CSS")
+      (progn 
+        (message "CSS sublass off: %s" (org-entry-get (point) "ITEM"))
+        (unintern (org-entry-get (point) "ITEM"))
+        (run-hooks 'v-trig-list))))
+#+end_src
+

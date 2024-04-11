@@ -1,0 +1,157 @@
+#+call: load-structor()
+#+TODO: ON
+#+STARTUP: fold
+* load 
+#+name: load-structor
+#+begin_src elisp :results silent
+
+(setf default-dir "~/")
+(setf text-scale-mode-amount 0.0)
+(load-file "~/elisp/toggler.el")
+
+(load-file "~/elisp/encode.el")
+(load-file "~/elisp/write-org.el")
+(load-file "~/elisp/subtree-elements.el")
+(load-file "~/elisp/marked-subtree-elements.el")
+
+(load-file "~/elisp/json-hl.el") 
+(load-file "~/elisp/execute-all-blocks.el")
+(load-file "~/elisp/subtree-to-props.el")
+(load-file "~/elisp/parser.el") 
+(load-file "~/elisp/to-buffer.el")
+(load-file "~/elisp/to-json-file.el")
+(load-file "~/elisp/to-file.el")
+(load-file "~/elisp/indium.el")
+(load-file "~/elisp/v-defuns.el")
+
+(load-file "~/elisp/general-parser.el")
+(load-file "~/elisp/parse-html-css.el")
+
+(load-file "~/elisp/intern-hl.el")
+(load-file "~/elisp/willtrigger.el")
+(load-file "~/elisp/incdec.el")
+
+(load-file "hooks/oth.el") 
+(load-file "hooks/vtrigs.el")
+(load-file "hooks/opcf.el")
+
+(load-file "hooks/dired-mode-hook.el")
+(dired-other-window "~/org/make/structures")
+#+end_src
+* tangle
+#+begin_src elisp :results silent
+(org-babel-tangle-file "toggler.org")
+
+(org-babel-tangle-file "parsers/transcoder-json.org")
+(org-babel-tangle-file "parsers/html-parser.org")
+
+(org-babel-tangle-file "listeners/json-listener.org")
+(org-babel-tangle-file "listeners/subtree-to-props.org")
+(org-babel-tangle-file "listeners/buffer.org")
+(org-babel-tangle-file "listeners/file.org")
+(org-babel-tangle-file "listeners/indium.org")
+(org-babel-tangle-file "listeners/movement.org")
+(org-babel-tangle-file "listeners/parse.org")
+(org-babel-tangle-file "listeners/intern-hl.org")
+(org-babel-tangle-file "listeners/willtrigger.org")
+(org-babel-tangle-file "listeners/incdec.org")
+
+
+#+end_src
+* ON org-trigger-hook
+:PROPERTIES:
+:hooks-lisp: hooks/oth.el
+:END:
+(find-file "toggler.org")
+(setf org-trigger-hook 'toggler)
+(setf org-trigger-hook nil)
+These will call on TODO state change
+** ON to-indium
+:PROPERTIES:
+:name:     Lunacy
+:host:     lunatropolis
+:type:     chrome
+:url:      http://lunatropolis.com
+:END:
+(find-file "~/org/make/listeners/indium.org")
+** ON to-file
+(find-file "~/org/make/listeners/file.org")
+1. html and css filenames from properties at 'stem headline.
+   1. CSS must be added to a <link> tag.
+2. json-output from property at json-marker
+** ON buffer-open
+(find-file-other-window "~/org/make/listeners/buffer.org")
+(find-file "~/elisp/to-buffer.el")
+(load-file "~/elisp/to-buffer.el")
+** ON json-hl
+(find-file "~/org/make/listeners/json-listener.org")
+** ON parse-html-css
+(find-file-other-window "~/org/make/parsers/html-parser.org")
+(find-file "~/org/make/listeners/parse.org")
+(find-file "~/elisp/parse-html-css.el")
+~/org/make/listeners/parse.org
+
+[[file:c:/Users/eugen/iCloudDrive/org/make/listeners/parse.org::*list classes][list classes]]
+** ON intern-headline
+(find-file "~/org/make/listeners/intern-hl.org") 
+* ON v-trig-list
+:PROPERTIES:
+:hooks-lisp: hooks/vtrigs.el
+:END:
+org-subtree restructuring will call v() which will call these
+** ON chrome-reload
+(find-file "~/org/make/listeners/indium.org")
+[[file:listeners/indium.org::*reload][reload]]
+** ON write-to-html-css
+(find-file "~/org/make/listeners/file.org")
+** ON buffer-reload
+[[file:listeners/buffer.org::*to-buffer][to-buffer]]
+** ON json-out
+(find-file "~/org/make/listeners/json-listener.org")
+** ON parse-stem
+(find-file-other-window "~/org/make/listeners/parse.org")
+(find-file "~/org/make/parsers/html-parser.org")
+Parsed output assigned to variables: html-output, css-output
+if bound, buffer and file hooks use them for output.
+
+* ON org-property-changed-functions
+:PROPERTIES:
+:hooks-lisp: hooks/opcf.el
+:END:
+Capture property change key/value pairs
+(setq org-property-changed-functions nil)
+** ON v-k-v
+(find-file "~/org/make/listeners/movement.org")
+calls v() but with k and v arguments
+restructure listeners PARSE trees
+** ON prop-change
+(find-file "~/org/make/listeners/willtrigger.org")
+I guess this is here to build 'externals' feature.
+*** externals
+Requires 'INTERN' state. 
+Headline where interning occurs is now usable for org-entry manipulation.
+WILLTRIGGER can be used in external org node to do subtree-executions.
+** ON prop-change-execute-all
+#+begin_src elisp :results silent :tangle ~/elisp/execute-all-blocks.el
+(defun prop-change-execute-all (key val)
+  (if (string= (org-entry-get nil "TODO") "EXECUTE_BUFFER")
+      (org-babel-execute-buffer)))
+#+end_src
+* convenience
+* ON dired-mode-hook
+:PROPERTIES:
+:hooks-lisp: hooks/dired-mode-hook.el
+:END:
+** ON dired-hide-details-mode
+** ON dired-sort-toggle-or-edit
+* ON org-property-allowed-value-functions
+:PROPERTIES:
+:f-all:    a
+:END:
+** ON f-all-test
+#+begin_src elisp :results silent
+(defun f-all-test(all-f)
+  (if (string= all-f "f-all")
+      '("a" "b" "c" "d" "e")
+    nil))
+#+end_src

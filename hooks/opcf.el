@@ -1,0 +1,1 @@
+(setf org-property-changed-functions '(prop-change-execute-all prop-change v-k-v))

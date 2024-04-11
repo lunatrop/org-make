@@ -1,5 +1,5 @@
 # org-make
-Create and edit html, react and JSON files with previewing in realtime.  
+Create and edit HTML, CSS, JSX and JSON files in real-time using org-mode.  
 
 
 # org-mode to JSON
